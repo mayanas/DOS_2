@@ -29,8 +29,10 @@ app.use(bodyParser.json());
 var start_time;
 var end_time;
 
+//cache array
 var cache = [];
 
+//search if request is  cached  
 searchInCache = (url) => {
   var flag = 0;
   var result;
@@ -53,6 +55,7 @@ searchInCache = (url) => {
 
 }
 
+//return the index of the least frequent request
 replacementCache = () => {
   var minCount = Number.MAX_SAFE_INTEGER+1;
   console.log(minCount);
@@ -69,9 +72,13 @@ replacementCache = () => {
 
 }
 
+//to add the new request to cache
 addToCache = (url, result) => {
-  if (cache.length == 3) {
+  //to put limit for number of items in cache
+  if (cache.length == 10) {
+    //if passed the limit then need to replace least frequent request by replacementCache function
     var index = replacementCache();
+    //replace the index returned from replacementCache func
     cache.splice(index, 1, {
       url: url,
       result: result,
@@ -79,6 +86,7 @@ addToCache = (url, result) => {
     });
   }
   else{
+    //if not passing the limit add new request to cache 
     cache.push({
       url: url,
       result: result,
@@ -251,10 +259,13 @@ app.post("/purchase/:item_number", (req, res) => {
     });
 })
 
+
+//invalidate request sent by the catalog when there is update
 app.put("/invalidateRequest",(req, res)=>{
   let query = req.body;
 
   for(var i=0; i<cache.length;i++){
+    
     if(cache[i].url==`/search/${query.Topic}`){
       cache.splice(i,1);//remove item from array 
     }
