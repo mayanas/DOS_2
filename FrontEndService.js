@@ -13,10 +13,10 @@ const app = express();
 const port = 3000;
 
 //ip address & port of catalog service 
-let catalog = ['192.168.1.109', '3001', 0, '192.168.1.109', '3002', 0];
+let catalog = ['192.168.1.106', '3001', 0, '192.168.1.106', '3002', 0];
 
 //ip address & port of order service 
-let order = ['192.168.1.109', '3003', 0, '192.168.1.109', '3004', 0];
+let order = ['192.168.1.106', '3003', 0, '192.168.1.106', '3004', 0];
 
 let chosen_replica = 0;//0->replica1, 3->replica2
 
@@ -29,11 +29,66 @@ app.use(bodyParser.json());
 var start_time;
 var end_time;
 
+var cache = [];
+
+searchInCache = (url) => {
+  var flag = 0;
+  var result;
+  cache.forEach(element => {
+    if (element.url == url) {
+      flag = 1;
+      element.count += 1;
+      result = element.result;
+    }
+  });
+  cache.forEach(element => {
+    console.log(element)
+  })
+  if (flag == 0) {
+    return '';
+  }
+  else {
+    return result;
+  }
+
+}
+
+replacementCache = () => {
+  var minCount = Math.max;
+  var index = 0;
+  for (var i = 0; i < cache.length; i++) {
+    if (cache[i].count < minCount) {
+      minCount = cache[i];
+      index = i;
+    }
+  }
+  console.log(index)
+  return index;
+
+}
+
+addToCache = (url, result) => {
+  if (cache.length == 3) {
+    var index = replacementCache();
+    cache.splice(index, 1, {
+      url: url,
+      result: result,
+      count: 1
+    });
+  }
+  cache.push({
+    url: url,
+    result: result,
+    count: 1
+  });
+
+}
+
 //search request to get books according to topic passed as json in the request body 
 app.get("/search", (req, res) => {
   let dataTobeSent = ""
   let query = req.body.topic;
-
+  // /search/query
   if (catalog[2] < catalog[5]) {
     catalog[2]++;
     chosen_replica = 0;
@@ -45,35 +100,49 @@ app.get("/search", (req, res) => {
   start_time = Date.now();
   console.log("--------------------------------------------------------------------------");
   console.log("Timer started ...\n");///////////////////////////////////////
-  axios.get('http://' + catalog[chosen_replica] + ':' + catalog[chosen_replica + 1] + '/search',
-    {
-      data: {
-        topic: query
-      }
-    })
-    .then(resw => {
-      if (resw.data == 'error' || resw.data == 'no books found related to this topic') {
-        console.log(resw.data);
-        dataTobeSent += resw.data
-      }
-      else {
-        
-        dataTobeSent += "list of books related to this topic was found\n"
-        resw.data.forEach(element => {
-          dataTobeSent += "- Book Number is '" + element.ID + "' and Book Name is '" + element.Name + "'\n"
-        });
 
-        console.log(dataTobeSent);
-      }
-      catalog[chosen_replica + 2]--;
+  console.log("Start search in cache ...");
+  let searchCache = searchInCache(`/search/${query}`);
+  //console.log(searchCache);
+  if (searchCache == '') {
+    console.log("Not found in cache ...");
+    axios.get('http://' + catalog[chosen_replica] + ':' + catalog[chosen_replica + 1] + '/search',
+      {
+        data: {
+          topic: query
+        }
+      })
+      .then(resw => {
+        if (resw.data == 'error' || resw.data == 'no books found related to this topic') {
+          console.log(resw.data);
+          dataTobeSent += resw.data
+        }
+        else {
 
-      end_time = Date.now() - start_time;
-      console.log(`Timer stoped, Duration is: ${end_time} ms`);///////////////////////////////////////
-      res.send(dataTobeSent);
-    })
-    .catch(error => {
-      console.error(error);
-    });
+          dataTobeSent += "list of books related to this topic was found\n"
+          resw.data.forEach(element => {
+            dataTobeSent += "- Book Number is '" + element.ID + "' and Book Name is '" + element.Name + "'\n"
+          });
+
+          // console.log(dataTobeSent);
+          addToCache(`/search/${query}`, dataTobeSent);
+        }
+        catalog[chosen_replica + 2]--;
+
+        end_time = Date.now() - start_time;
+        console.log(`Timer stoped, Duration is: ${end_time} ms`);///////////////////////////////////////
+        res.send(dataTobeSent);
+      })
+      .catch(error => {
+        console.error(error);
+      });
+  }
+  else {
+    console.log("Found in cache ...");
+    end_time = Date.now() - start_time;
+    console.log(`Timer stoped, Duration is: ${end_time} ms`);///////////////////////////////////////
+    res.send(searchCache);
+  }
 })
 
 
@@ -93,37 +162,50 @@ app.get("/info", (req, res) => {
   start_time = Date.now();
   console.log("--------------------------------------------------------------------------");
   console.log("Timer started ...\n");///////////////////////////////////////
-  //axios route to send a request to the catalog service using its ip and port
-  //parameter passed in the body
-  axios.get('http://' + catalog[chosen_replica] + ':' + catalog[chosen_replica + 1] + '/info',
-    {
-      data: {
-        item_number: query
-      }
-    })
-    .then(resw => {
-      //show the results
-      if (resw.data == 'Somthing wrong occurred!' || resw.data == 'Book does not exist, make sure to enter valid item number') {
-        console.log(resw.data);
-        dataTobeSent = resw.data
-      }
-      else {
-        //if book found return its info
-        
-        dataTobeSent = "Book Found\n"
-        dataTobeSent += "- Book Name is '" + resw.data.Name + "'\n"
-        dataTobeSent += "- Book Topic is '" + resw.data.Topic + "'\n"
-        dataTobeSent += "- Book Cost is '" + resw.data.Cost + "'\n"
-        dataTobeSent += "- Book Number of items is '" + resw.data.NumItem + "'\n";
-        console.log(dataTobeSent);
-      }
-      end_time = Date.now() - start_time;
-      console.log(`Timer stoped, Duration is: ${end_time} ms`);///////////////////////////////////////
-      res.send(dataTobeSent)
-    })
-    .catch(error => {
-      console.error(error);
-    });
+
+  console.log("Start search in cache ...");
+  let searchCache = searchInCache(`/info/${query}`);
+  if (searchCache == '') {
+    console.log("Not found in cache ...");
+    //axios route to send a request to the catalog service using its ip and port
+    //parameter passed in the body
+    axios.get('http://' + catalog[chosen_replica] + ':' + catalog[chosen_replica + 1] + '/info',
+      {
+        data: {
+          item_number: query
+        }
+      })
+      .then(resw => {
+        //show the results
+        if (resw.data == 'Somthing wrong occurred!' || resw.data == 'Book does not exist, make sure to enter valid item number') {
+          console.log(resw.data);
+          dataTobeSent = resw.data
+        }
+        else {
+          //if book found return its info
+
+          dataTobeSent = "Book Found\n"
+          dataTobeSent += "- Book Name is '" + resw.data.Name + "'\n"
+          dataTobeSent += "- Book Topic is '" + resw.data.Topic + "'\n"
+          dataTobeSent += "- Book Cost is '" + resw.data.Cost + "'\n"
+          dataTobeSent += "- Book Number of items is '" + resw.data.NumItem + "'\n";
+          //console.log(dataTobeSent);
+          addToCache(`/info/${query}`, dataTobeSent);
+        }
+        end_time = Date.now() - start_time;
+        console.log(`Timer stoped, Duration is: ${end_time} ms`);///////////////////////////////////////
+        res.send(dataTobeSent)
+      })
+      .catch(error => {
+        console.error(error);
+      });
+  }
+  else{
+    console.log("Found in cache ...");
+    end_time = Date.now() - start_time;
+    console.log(`Timer stoped, Duration is: ${end_time} ms`);///////////////////////////////////////
+    res.send(searchCache);
+  }
 })
 
 //purchase request inorder to buy a book by passing its number in the URI
@@ -145,18 +227,18 @@ app.post("/purchase/:item_number", (req, res) => {
   //using put request to update the number of items in the stock
   axios
     .post('http://' + order[chosen_replica] + ':' + order[chosen_replica + 1] + '/purchase', {
-       item_number: query, 
-       amount: 1,
-       catalog1: catalog[2],
-       catalog2: catalog[5]
-      })
+      item_number: query,
+      amount: 1,
+      catalog1: catalog[2],
+      catalog2: catalog[5]
+    })
     .then(resw => {
 
-      console.log(resw.data+'\n');
+      console.log(resw.data + '\n');
       end_time = Date.now() - start_time;
       console.log(`Timer stoped, Duration is: ${end_time} ms`);///////////////////////////////////////
 
-      order[chosen_replica+2]--;
+      order[chosen_replica + 2]--;
       //show the result of purchasing process
       res.send(resw.data);
     })
