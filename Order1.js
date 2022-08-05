@@ -8,12 +8,12 @@ const app = express();
 const port = 3003;
 
 //ip address & port of catalog service 
-let catalog = ['192.168.1.109', '3001', 0, '192.168.1.109', '3002', 0];
+let catalog = ['192.168.1.106', '3001', 0, '192.168.1.106', '3002', 0];
 
 let chosen_replica = 0;//0->replica1, 3->replica2
 
-let ip_order2='192.168.1.109';
-let port_order2='3004';
+let ip_order2 = '192.168.1.106';
+let port_order2 = '3004';
 
 app.use(bodyParser.urlencoded({
   extended: true
@@ -64,7 +64,7 @@ app.post("/purchase", (req, res) => {
 
 
 
-        var newCsv='';
+        var newCsv = '';
         await fs.stat('OrderDB.CSV', function (err, stat) {
           if (err == null) {
             console.log('File exists');
@@ -74,18 +74,20 @@ app.post("/purchase", (req, res) => {
               if (err) throw err;
               console.log('The "data to append" was appended to file!');
             });
-           } 
+
+            axios
+              .post('http://' + ip_order2 + ':' + port_order2 + '/appendOrder', {
+                data: newCsv
+              })
+              .then(resu => {
+              })
+              .catch(error => {
+                res.send("Something went wrong")
+              });
+          }
         }
         );
-        await axios
-          .post('http://' + ip_order2 + ':' + port_order2 + '/appendOrder', {
-            data: newCsv
-          })
-          .then(resu => {
-          })
-          .catch(error => {
-            res.send("Something went wrong")
-          });
+
         //send axios request to catalog server to update numbe rof items in the stock of that book
         //inorder to use restful api's put need to passed all the fields of the book with the new update
         await axios
@@ -131,17 +133,17 @@ app.post("/purchase", (req, res) => {
 
 })
 
-app.post("/appendOrder", (req,res)=>{
-  let data= req.body.data;
+app.post("/appendOrder", (req, res) => {
+  let data = req.body.data;
 
   console.log(data)
-   fs.stat('OrderDB.CSV', function (err, stat) {
+  fs.stat('OrderDB.CSV', function (err, stat) {
     if (err == null) {
       fs.appendFile('OrderDB.CSV', data, function (err) {
         if (err) throw err;
         console.log('The "data to append" was appended to file!');
       });
-     } 
+    }
   }
   );
   res.send('done')
