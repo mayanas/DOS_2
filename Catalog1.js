@@ -6,6 +6,9 @@ const fs = require("fs");
 const csv = require('fast-csv');
 //needed in order to write the updated data when purchsing
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
+
+const axios = require('axios');
+
 const app = express();
 
 const port = 3001;
@@ -25,20 +28,20 @@ app.get("/search", (req, res) => {
     let query = req.body.topic;
     console.log(query)
     const data = []
-    let flag=0;
+    let flag = 0;
     //same idea of the previous request 
     fs.createReadStream('DB.CSV')
         .pipe(csv.parse({ headers: true }))
         .on('error', error => res.send("Somthing wrong occurred!"))
         .on('data', (row) => {
-            if (row.Topic == query) {    
-                flag=1;
+            if (row.Topic == query) {
+                flag = 1;
                 data.push({ "Name": row.Name, "ID": row.ID });
             }
         })
         .on('end', () => {
-            if (flag==1) res.send(data);
-            else if (flag==0) res.send("No books found related to this topic")
+            if (flag == 1) res.send(data);
+            else if (flag == 0) res.send("No books found related to this topic")
         }
         );
 
@@ -50,7 +53,7 @@ app.get("/info/:item_number", (req, res) => {
     //get the parameter value
     let query = req.params.item_number;
     let data = "";//to get the book info
-    let flag=0;
+    let flag = 0;
     //read file
     fs.createReadStream('DB.CSV')
         .pipe(csv.parse({ headers: true }))//avoid the first line
@@ -61,13 +64,13 @@ app.get("/info/:item_number", (req, res) => {
         .on('data', (row) => {//read data line by line from the file
             if (row.ID == query) {
                 //if the book found
-                flag=1;
-                data={ "Name": row.Name, "Topic": row.Topic, "NumItem": row.NumItem, "Cost": row.Cost };//get the book info and store it in data
+                flag = 1;
+                data = { "Name": row.Name, "Topic": row.Topic, "NumItem": row.NumItem, "Cost": row.Cost };//get the book info and store it in data
             }
         })
 
         .on('end', () => {//in the end of the file send the result, if the book found or not
-            if(flag==0)res.send("Book does not exist, make sure to enter valid item number");
+            if (flag == 0) res.send("Book does not exist, make sure to enter valid item number");
             else res.send(data);
         }
         );
@@ -80,7 +83,7 @@ app.get("/info", (req, res) => {
     //the only difference from the previous one is how to get the value of item_number 
     //get it from the request body
     let query = req.body.item_number;
-    let data=""
+    let data = ""
     fs.createReadStream('DB.CSV')
         .pipe(csv.parse({ headers: true }))
         .on('error', error => {
@@ -89,7 +92,7 @@ app.get("/info", (req, res) => {
         })
         .on('data', (row) => {
             if (row.ID == query) {
-                data={ "Name": row.Name, "Topic": row.Topic, "NumItem": row.NumItem, "Cost": row.Cost };
+                data = { "Name": row.Name, "Topic": row.Topic, "NumItem": row.NumItem, "Cost": row.Cost };
             }
         })
 
@@ -171,13 +174,22 @@ app.put("/update", (req, res) => {
         .on('end', () => {
             //overwrite back the data in the file with the modifications
             csvWriter.writeRecords(data)
+
+            axios
+                .put('http://192.168.1.106:3000' + '/invalidateRequest', {
+                    ID: query.ID,
+                    Topic: query.Topic,
+                })
+                .then(resu => {
+                })
+                .catch(error => {
+                    res.send("Something went wrong")
+                });
+
             res.send("done")
         }
         );
 
 
-
-
-
 })
-app.listen(port, () => console.log("Catalog service is running on port "+port));
+app.listen(port, () => console.log("Catalog service is running on port " + port));
