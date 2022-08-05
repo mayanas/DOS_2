@@ -54,15 +54,17 @@ searchInCache = (url) => {
 }
 
 replacementCache = () => {
-  var minCount = Math.max;
-  var index = 0;
+  var minCount = Number.MAX_SAFE_INTEGER+1;
+  console.log(minCount);
+  let index = 0;
   for (var i = 0; i < cache.length; i++) {
     if (cache[i].count < minCount) {
-      minCount = cache[i];
+      minCount = cache[i].count;
       index = i;
+      
     }
   }
-  console.log(index)
+  console.log(minCount);
   return index;
 
 }
@@ -76,11 +78,13 @@ addToCache = (url, result) => {
       count: 1
     });
   }
-  cache.push({
-    url: url,
-    result: result,
-    count: 1
-  });
+  else{
+    cache.push({
+      url: url,
+      result: result,
+      count: 1
+    });
+  }
 
 }
 
@@ -245,6 +249,21 @@ app.post("/purchase/:item_number", (req, res) => {
     .catch(error => {
       console.error(error);
     });
+})
+
+app.put("/invalidateRequest",(req, res)=>{
+  let query = req.body;
+
+  for(var i=0; i<cache.length;i++){
+    if(cache[i].url==`/search/${query.Topic}`){
+      cache.splice(i,1);//remove item from array 
+    }
+    else if(cache[i].url==`/info/${query.ID}`){
+      cache.splice(i,1);//remove item from array 
+    }
+  }
+
+  
 })
 
 app.listen(port, () => console.log(`Front-End service is running on port ` + port));
