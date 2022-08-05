@@ -175,6 +175,8 @@ app.put("/update", (req, res) => {
             //overwrite back the data in the file with the modifications
             csvWriter.writeRecords(data)
 
+            
+            //send invalidate request to the frontend so will invalidate the request in the cache
             axios
                 .put('http://192.168.1.106:3000' + '/invalidateRequest', {
                     ID: query.ID,
